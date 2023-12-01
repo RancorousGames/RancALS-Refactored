@@ -367,6 +367,9 @@ void UAlsAnimationInstance::RefreshView(const float DeltaTime)
 		ViewState.YawAngle = FMath::UnwindDegrees(UE_REAL_TO_FLOAT(ViewState.Rotation.Yaw - LocomotionState.Rotation.Yaw));
 		ViewState.PitchAngle = FMath::UnwindDegrees(UE_REAL_TO_FLOAT(ViewState.Rotation.Pitch - LocomotionState.Rotation.Pitch));
 
+		// Log YawAngle
+		//UE_LOG(LogTemp, Warning, TEXT("YawAngle: %f - %f = %f"), ViewState.Rotation.Yaw, LocomotionState.Rotation.Yaw, ViewState.YawAngle);
+		
 		ViewState.PitchAmount = 0.5f - ViewState.PitchAngle / 180.0f;
 	}
 
@@ -385,10 +388,24 @@ bool UAlsAnimationInstance::IsSpineRotationAllowed()
 
 void UAlsAnimationInstance::RefreshSpine(const float SpineBlendAmount, const float DeltaTime)
 {
+	static constexpr bool UseSimpleWTRotation{false};
+	if (UseSimpleWTRotation)
+	{
+		// A simplified spine rotation for easier control of aiming speed with "allow aiming" curve value, made for wartribes
+
+		if (SpineState.bSpineRotationAllowed || SpineState.YawAngle != 0.0f)
+		{
+			SpineState.YawAngle = UAlsRotation::LerpAngle(SpineState.YawAngle,
+															SpineState.bSpineRotationAllowed ? ViewState.YawAngle : 0,
+															SpineBlendAmount * SpineBlendAmount);
+		}
+		return;
+	}
+	
 	if (SpineState.bSpineRotationAllowed != IsSpineRotationAllowed())
 	{
 		SpineState.bSpineRotationAllowed = !SpineState.bSpineRotationAllowed;
-
+		
 		if (SpineState.bSpineRotationAllowed)
 		{
 			// Remap SpineAmount from the [SpineAmount, 1] range to [0, 1] so that lerp between new LastYawAngle

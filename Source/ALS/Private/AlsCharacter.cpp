@@ -1691,7 +1691,7 @@ void AAlsCharacter::RefreshGroundedAimingRotation(const float DeltaTime)
 	{
 		// Moving.
 
-		static constexpr auto RotationInterpolationSpeed{20.0f};
+		static constexpr auto RotationInterpolationSpeed{4.0f};
 		static constexpr auto TargetYawAngleRotationSpeed{1000.0f};
 
 		SetTargetYawAngleSmooth(UE_REAL_TO_FLOAT(ViewState.Rotation.Yaw), DeltaTime, TargetYawAngleRotationSpeed);
