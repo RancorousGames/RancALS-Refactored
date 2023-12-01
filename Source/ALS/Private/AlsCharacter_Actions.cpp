@@ -835,6 +835,12 @@ void AAlsCharacter::RefreshRagdolling(const float DeltaTime)
 	// they may return an incorrect result in situations like when the animation blueprint is not ticking or when URO is enabled.
 
 	const auto* PelvisBody{GetMesh()->GetBodyInstance(UAlsConstants::PelvisBoneName())};
+	
+	if (!PelvisBody)
+	{
+		return;
+	}
+	
 	FVector PelvisLocation;
 
 	FPhysicsCommand::ExecuteRead(PelvisBody->ActorHandle, [this, &PelvisLocation](const FPhysicsActorHandle& ActorHandle)

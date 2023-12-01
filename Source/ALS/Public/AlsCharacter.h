@@ -303,7 +303,7 @@ public:
 	const FGameplayTag& GetGait() const;
 
 protected:
-	void SetGait(const FGameplayTag& NewGait);
+	virtual void SetGait(const FGameplayTag& NewGait);
 
 	UFUNCTION(BlueprintNativeEvent, Category = "Als Character")
 	void OnGaitChanged(const FGameplayTag& PreviousGait);

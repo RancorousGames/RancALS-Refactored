@@ -1,10 +1,12 @@
 #pragma once
 
 #include "AIController.h"
+#include "RAIController.h"
+#include "RAIController.h"
 #include "AlsAIController.generated.h"
 
 UCLASS(DisplayName = "Als AI Controller")
-class ALSEXTRAS_API AAlsAIController : public AAIController
+class ALSEXTRAS_API AAlsAIController  : public ARAIController
 {
 	GENERATED_BODY()
 
