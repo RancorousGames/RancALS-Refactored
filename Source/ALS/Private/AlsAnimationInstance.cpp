@@ -334,8 +334,24 @@ void UAlsAnimationInstance::RefreshSpineRotation(const float SpineBlendAmount, c
 		SpineRotation.InitialYawAngle = SpineRotation.CurrentYawAngle;
 	}
 
+	static constexpr bool UseSimpleWTRotation{true};
+	if (UseSimpleWTRotation)
+	{
+		// A simplified spine rotation for easier control of aiming speed with "allow aiming" curve value, made for wartribes
+
+		if (SpineRotation.bSpineRotationAllowed || SpineRotation.YawAngle != 0.0f)
+		{
+			SpineRotation.YawAngle = UAlsMath::LerpAngle(SpineRotation.YawAngle,
+															SpineRotation.bSpineRotationAllowed ? ViewState.YawAngle : 0,
+															SpineBlendAmount * SpineBlendAmount);
+		}
+		return;
+	}
+
 	if (SpineRotation.bSpineRotationAllowed)
 	{
+
+		
 		static constexpr auto InterpolationSpeed{20.0f};
 
 		SpineRotation.SpineAmount = bPendingUpdate

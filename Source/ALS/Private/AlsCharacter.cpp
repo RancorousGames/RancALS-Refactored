@@ -337,7 +337,7 @@ void AAlsCharacter::RefreshMeshProperties() const
 
 	// Keep the default tick option, at least if the target tick option is not required by the plugin to work properly.
 
-	GetMesh()->VisibilityBasedAnimTickOption = FMath::Min(TargetTickOption, DefaultTickOption);
+	// GetMesh()->VisibilityBasedAnimTickOption = FMath::Min(TargetTickOption, DefaultTickOption);
 
 	const auto bMeshIsTicking{
 		GetMesh()->bRecentlyRendered || GetMesh()->VisibilityBasedAnimTickOption <= EVisibilityBasedAnimTickOption::AlwaysTickPose
@@ -1611,7 +1611,7 @@ void AAlsCharacter::RefreshGroundedAimingRotation(const float DeltaTime)
 		return;
 	}
 
-	static constexpr auto RotationInterpolationSpeed{20.0f};
+	static constexpr auto RotationInterpolationSpeed{4.0f};
 	static constexpr auto TargetYawAngleRotationSpeed{1000.0f};
 
 	RefreshRotationExtraSmooth(UE_REAL_TO_FLOAT(ViewState.Rotation.Yaw), DeltaTime,
@@ -1651,15 +1651,16 @@ bool AAlsCharacter::RefreshConstrainedAimingRotation(const float DeltaTime, cons
 
 	if (bApplyPrimaryConstraint)
 	{
-		RefreshRotationInstant(TargetYawAngle);
-		return true;
+		// Below is commented out for Wartribes desired behavior during aiming
+		// RefreshRotationInstant(TargetYawAngle);
+		// return true;
 	}
 
 	// Secondary constraint. Simply increases the character's rotation speed. Typically only used when the character is standing still.
 
 	if (bApplySecondaryConstraint)
 	{
-		static constexpr auto RotationInterpolationSpeed{20.0f};
+		static constexpr auto RotationInterpolationSpeed{4.0f};
 
 		RefreshRotation(TargetYawAngle, DeltaTime, RotationInterpolationSpeed);
 		return true;
