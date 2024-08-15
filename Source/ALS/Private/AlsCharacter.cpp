@@ -404,11 +404,11 @@ void AAlsCharacter::RefreshMeshProperties() const
 		else
 		{
 			GetMesh()->SetRelativeRotation_Direct(
-				GetMesh()->GetRelativeRotationCache().QuatToRotator(GetActorQuat().Inverse() * GetMesh()->GetComponentQuat()));
+			GetMesh()->GetRelativeRotationCache().QuatToRotator(GetActorQuat().Inverse() * GetMesh()->GetComponentQuat()));
 		}
 	}
 
-	if (!bMeshIsTicking)
+	if (!bMeshIsTicking && AnimationInstance.IsValid())
 	{
 		AnimationInstance->MarkPendingUpdate();
 	}
@@ -1627,10 +1627,12 @@ void AAlsCharacter::RefreshGroundedAimingRotation(const float DeltaTime)
 
 		SetTargetYawAngle(UE_REAL_TO_FLOAT(ViewState.Rotation.Yaw));
 
+		/*
 		if (!ConstrainAimingRotation(NewActorRotation, DeltaTime, true))
 		{
 			return;
 		}
+		*/
 	}
 	else
 	{
@@ -1659,8 +1661,8 @@ void AAlsCharacter::RefreshGroundedAimingRotation(const float DeltaTime)
 
 bool AAlsCharacter::ConstrainAimingRotation(FRotator& ActorRotation, const float DeltaTime, const bool bApplySecondaryConstraint)
 {
-	// Limit the actor's rotation when aiming to prevent situations where the lower body noticeably
-	// fails to keep up with the rotation of the upper body when the camera is rotating very fast.
+	// Telport-Clamp the actor's rotation when aiming to prevent situations where the lower body noticeably
+	// fails to keep up with the rotation of the upper body when the camera/view is rotating very fast.
 
 	auto ViewRelativeAngle{FRotator3f::NormalizeAxis(UE_REAL_TO_FLOAT(ViewState.Rotation.Yaw - ActorRotation.Yaw))};
 
@@ -1673,7 +1675,6 @@ bool AAlsCharacter::ConstrainAimingRotation(FRotator& ActorRotation, const float
 	ViewRelativeAngle = UAlsRotation::RemapAngleForClockwiseRotation(ViewRelativeAngle);
 
 	// Secondary constraint. Simply increases the actor's rotation speed. Typically only used when the actor is standing still.
-
 	if (bApplySecondaryConstraint)
 	{
 		static constexpr auto RotationInterpolationSpeed{20.0f};

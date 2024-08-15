@@ -15,13 +15,13 @@ public:
 	// Remaps the angle from the [-175, -180] range to [185, 180]. Used
 	// to make the character rotate clockwise during a 180 degree turn.
 	template <typename ValueType> requires std::is_floating_point_v<ValueType>
-	static constexpr ValueType RemapAngleForClockwiseRotation(ValueType Angle);
+	static constexpr ValueType RemapAngleForClockwiseRotation(ValueType Angle, const float ForcedDirection);
 
 	UFUNCTION(BlueprintPure, Category = "ALS|Rotation Utility", Meta = (ReturnDisplayName = "Angle"))
-	static float RemapAngleForClockwiseRotation(float Angle);
+	static float RemapAngleForClockwiseRotation(float Angle, const int32 ForcedDirection = 0);
 
 	UFUNCTION(BlueprintPure, Category = "ALS|Rotation Utility", Meta = (ReturnDisplayName = "Angle"))
-	static float LerpAngle(float From, float To, float Ratio);
+	static float LerpAngle(const float From, const float To, const float Ratio, const float BaseSpeed = 0, const int32 ForcedDirection = 0);
 
 	UFUNCTION(BlueprintPure, Category = "ALS|Rotation Utility", Meta = (AutoCreateRefTerm = "From, To", ReturnDisplayName = "Rotation"))
 	static FRotator LerpRotation(const FRotator& From, const FRotator& To, float Ratio);
@@ -52,9 +52,18 @@ public:
 };
 
 template <typename ValueType> requires std::is_floating_point_v<ValueType>
-constexpr ValueType UAlsRotation::RemapAngleForClockwiseRotation(const ValueType Angle)
+constexpr ValueType UAlsRotation::RemapAngleForClockwiseRotation(const ValueType Angle, const float ForcedDirection)
 {
-	if (Angle < -180.0f + ClockwiseRotationAngleThreshold)
+	if (ForcedDirection != 0.0f)
+	{
+		// Forced direction is +1, 0 or -1
+		if (Angle > 0 && ForcedDirection < 0)
+			return Angle - 360.0f;
+		if (Angle < 0 && ForcedDirection > 0)
+			return Angle + 360.0f;
+	}
+	// The input is already normalized (clamped 180, -180) so this will "guess" that we were < -180 before normalizing
+	else if (Angle < -180.0f + ClockwiseRotationAngleThreshold) 
 	{
 		return Angle + 360.0f;
 	}
@@ -62,17 +71,22 @@ constexpr ValueType UAlsRotation::RemapAngleForClockwiseRotation(const ValueType
 	return Angle;
 }
 
-inline float UAlsRotation::RemapAngleForClockwiseRotation(float Angle)
+inline float UAlsRotation::	RemapAngleForClockwiseRotation(float Angle, const int32 ForcedDirection)
 {
-	return RemapAngleForClockwiseRotation<float>(Angle);
+	return RemapAngleForClockwiseRotation<float>(Angle, ForcedDirection);
 }
 
-inline float UAlsRotation::LerpAngle(const float From, const float To, const float Ratio)
+inline float UAlsRotation::LerpAngle(const float From, const float To, const float Ratio, const float BaseSpeed, const int32 ForcedDirection)
 {
-	auto Delta{FRotator3f::NormalizeAxis(To - From)};
-	Delta = RemapAngleForClockwiseRotation(Delta);
-
-	return FRotator3f::NormalizeAxis(From + Delta * Ratio);
+	float Delta{FRotator3f::NormalizeAxis(To - From)};
+	Delta = RemapAngleForClockwiseRotation(Delta, ForcedDirection);
+	
+	// 15 is our base rotation speed, which is then increased by delta
+	float BaseSpeedYaw = Delta > 0 ? BaseSpeed : -BaseSpeed;
+	if (FMath::Abs(Delta) < FMath::Abs(Delta + BaseSpeedYaw) * Ratio) // When we would overshoot, just return the target
+		return To;
+	
+	return FRotator3f::NormalizeAxis(From + (Delta + BaseSpeedYaw) * Ratio);
 }
 
 inline FRotator UAlsRotation::LerpRotation(const FRotator& From, const FRotator& To, const float Ratio)
