@@ -65,6 +65,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
 	FGameplayTag RotationMode{AlsRotationModeTags::ViewDirection};
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
+	bool LockAimDirection{false};
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
 	FGameplayTag Stance{AlsStanceTags::Standing};
@@ -353,6 +356,11 @@ public:
 
 public:
 	float GetCurveValueClamped01(const FName& CurveName) const;
+
+	// WARTRIBES WT MODIFICATIONS
+protected:
+	bool IsDedicatedServer;
+
 };
 
 inline UAlsAnimationInstanceSettings* UAlsAnimationInstance::GetSettingsUnsafe() const

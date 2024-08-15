@@ -62,6 +62,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State|Als Character", Transient)
 	FGameplayTag RotationMode{AlsRotationModeTags::ViewDirection};
 
+	// Used to prevent the spine from rotating when set, not replicated
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State|Als Character", Transient)
+	bool LockAimDirection {false};
+	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State|Als Character", Transient)
 	FGameplayTag Stance{AlsStanceTags::Standing};
 
@@ -231,9 +235,10 @@ private:
 
 public:
 	const FGameplayTag& GetRotationMode() const;
-
+	
 protected:
 	void SetRotationMode(const FGameplayTag& NewRotationMode);
+	
 
 	virtual void NotifyRotationModeChanged(const FGameplayTag& PreviousRotationMode);
 
@@ -466,7 +471,7 @@ protected:
 	void SetTargetYawAngleSmooth(float TargetYawAngle, float DeltaTime, float RotationSpeed);
 
 	void RefreshViewRelativeTargetYawAngle();
-
+	
 	// Rolling
 
 public:
@@ -608,6 +613,19 @@ private:
 	void DisplayDebugTraces(const UCanvas* Canvas, float Scale, float HorizontalLocation, float& VerticalLocation) const;
 
 	void DisplayDebugMantling(const UCanvas* Canvas, float Scale, float HorizontalLocation, float& VerticalLocation) const;
+
+	// WARTRIBES MODIFICATIONS
+public:
+	bool GetLockAimDirectionWT() const;
+	void SetLockAimDirectionWT(bool NewLockAimDirection);
+	
+	void SetGlobalCharacterYawAndPitchWT(float NewGlobalCharacterYaw, float NewGlobalCharacterPitch);
+	float GetGlobalCharacterYawWT() const;
+	float GetGlobalCharacterPitchWT() const;
+
+protected:
+	float CachedGlobalCharacterYaw;
+	float CachedGlobalCharacterPitch;
 };
 
 inline const UAlsCharacterSettings* AAlsCharacter::GetSettings() const
@@ -638,6 +656,11 @@ inline const FGameplayTag& AAlsCharacter::GetDesiredRotationMode() const
 inline const FGameplayTag& AAlsCharacter::GetRotationMode() const
 {
 	return RotationMode;
+}
+
+inline bool AAlsCharacter::GetLockAimDirectionWT() const
+{
+	return LockAimDirection;
 }
 
 inline const FGameplayTag& AAlsCharacter::GetDesiredStance() const

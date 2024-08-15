@@ -401,11 +401,11 @@ void AAlsCharacter::RefreshMeshProperties() const
 		else
 		{
 			GetMesh()->SetRelativeRotation_Direct(
-				GetMesh()->GetRelativeRotationCache().QuatToRotator(GetActorQuat().Inverse() * GetMesh()->GetComponentQuat()));
+			GetMesh()->GetRelativeRotationCache().QuatToRotator(GetActorQuat().Inverse() * GetMesh()->GetComponentQuat()));
 		}
 	}
 
-	if (!bMeshIsTicking)
+	if (!bMeshIsTicking && AnimationInstance.IsValid())
 	{
 		AnimationInstance->MarkPendingUpdate();
 	}
@@ -1345,7 +1345,7 @@ void AAlsCharacter::RefreshLocomotionEarly()
 			DesiredVelocityYawAngle + MovementBase.DeltaRotation.Yaw));
 
 		LocomotionState.VelocityYawAngle = FMath::UnwindDegrees(UE_REAL_TO_FLOAT(
-			LocomotionState.VelocityYawAngle + MovementBase.DeltaRotation.Yaw));
+		LocomotionState.VelocityYawAngle + MovementBase.DeltaRotation.Yaw));
 	}
 
 	if (MovementBase.bHasRelativeRotation)
@@ -1531,6 +1531,25 @@ void AAlsCharacter::RefreshGroundedRotation(const float DeltaTime)
 	{
 		// Not moving.
 
+		// WT Change:
+		// On dedicated servers, animations don't play, so ApplyRotationYawSpeedAnimationCurve
+		// won't rotate the actor. If in ViewDirection mode, explicitly rotate the server's
+		// actor towards the replicated view direction to keep its logical facing correct.
+		if (IsNetMode(NM_DedicatedServer) && (RotationMode == AlsRotationModeTags::ViewDirection  || RotationMode == AlsRotationModeTags::Aiming))
+		{
+			// Directly use the replicated (and smoothed) view state rotation yaw as the target.
+			const float TargetYawAngle = UE_REAL_TO_FLOAT(ViewState.Rotation.Yaw);
+
+			// Use a simple smooth rotation. The exact speed isn't critical for the server's
+			// logical rotation, just that it eventually aligns. 5.0f is a common default.
+			static constexpr float ServerRotationInterpolationSpeed{5.0f};
+			SetRotationSmooth(TargetYawAngle, DeltaTime, ServerRotationInterpolationSpeed);
+
+			// We've handled the rotation for the dedicated server in this specific state,
+			// so we can skip the subsequent checks within the 'Not Moving' block.
+			return;
+		}
+
 		ApplyRotationYawSpeedAnimationCurve(DeltaTime);
 
 		if (RefreshCustomGroundedNotMovingRotation(DeltaTime))
@@ -1682,16 +1701,18 @@ void AAlsCharacter::RefreshGroundedAimingRotation(const float DeltaTime)
 
 		SetTargetYawAngle(UE_REAL_TO_FLOAT(ViewState.Rotation.Yaw));
 
+		/*
 		if (!ConstrainAimingRotation(NewActorRotation, DeltaTime, true))
 		{
 			return;
 		}
+		*/
 	}
 	else
 	{
 		// Moving.
 
-		static constexpr auto RotationInterpolationSpeed{4.0f};
+		static constexpr auto RotationInterpolationSpeed{20.0f};
 		static constexpr auto TargetYawAngleRotationSpeed{1000.0f};
 
 		SetTargetYawAngleSmooth(UE_REAL_TO_FLOAT(ViewState.Rotation.Yaw), DeltaTime, TargetYawAngleRotationSpeed);
@@ -1941,4 +1962,28 @@ void AAlsCharacter::RefreshViewRelativeTargetYawAngle()
 {
 	LocomotionState.ViewRelativeTargetYawAngle = FMath::UnwindDegrees(UE_REAL_TO_FLOAT(
 		ViewState.Rotation.Yaw - LocomotionState.TargetYawAngle));
+}
+
+void AAlsCharacter::SetLockAimDirectionWT(bool NewLockAim)
+{
+	if (LockAimDirection != NewLockAim)
+	{
+		LockAimDirection = NewLockAim;
+	}
+}
+
+void AAlsCharacter::SetGlobalCharacterYawAndPitchWT(float NewGlobalCharacterYaw, float NewGlobalCharacterPitch)
+{
+	CachedGlobalCharacterYaw = NewGlobalCharacterYaw;
+	CachedGlobalCharacterPitch = NewGlobalCharacterPitch;
+}
+
+float AAlsCharacter::GetGlobalCharacterYawWT() const
+{
+	return CachedGlobalCharacterYaw;
+}
+
+float AAlsCharacter::GetGlobalCharacterPitchWT() const
+{
+	return CachedGlobalCharacterPitch;
 }

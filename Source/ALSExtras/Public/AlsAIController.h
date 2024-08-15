@@ -16,6 +16,7 @@ protected:
 
 public:
 	AAlsAIController();
+	AAlsAIController(const FObjectInitializer& ObjectInitializer);
 
 protected:
 	virtual void OnPossess(APawn* NewPawn) override;
