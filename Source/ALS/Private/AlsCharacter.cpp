@@ -401,11 +401,11 @@ void AAlsCharacter::RefreshMeshProperties() const
 		else
 		{
 			GetMesh()->SetRelativeRotation_Direct(
-				GetMesh()->GetRelativeRotationCache().QuatToRotator(GetActorQuat().Inverse() * GetMesh()->GetComponentQuat()));
+			GetMesh()->GetRelativeRotationCache().QuatToRotator(GetActorQuat().Inverse() * GetMesh()->GetComponentQuat()));
 		}
 	}
 
-	if (!bMeshIsTicking)
+	if (!bMeshIsTicking && AnimationInstance.IsValid())
 	{
 		AnimationInstance->MarkPendingUpdate();
 	}
@@ -1345,7 +1345,7 @@ void AAlsCharacter::RefreshLocomotionEarly()
 			DesiredVelocityYawAngle + MovementBase.DeltaRotation.Yaw));
 
 		LocomotionState.VelocityYawAngle = FMath::UnwindDegrees(UE_REAL_TO_FLOAT(
-			LocomotionState.VelocityYawAngle + MovementBase.DeltaRotation.Yaw));
+		LocomotionState.VelocityYawAngle + MovementBase.DeltaRotation.Yaw));
 	}
 
 	if (MovementBase.bHasRelativeRotation)
@@ -1682,16 +1682,18 @@ void AAlsCharacter::RefreshGroundedAimingRotation(const float DeltaTime)
 
 		SetTargetYawAngle(UE_REAL_TO_FLOAT(ViewState.Rotation.Yaw));
 
+		/*
 		if (!ConstrainAimingRotation(NewActorRotation, DeltaTime, true))
 		{
 			return;
 		}
+		*/
 	}
 	else
 	{
 		// Moving.
 
-		static constexpr auto RotationInterpolationSpeed{4.0f};
+		static constexpr auto RotationInterpolationSpeed{20.0f};
 		static constexpr auto TargetYawAngleRotationSpeed{1000.0f};
 
 		SetTargetYawAngleSmooth(UE_REAL_TO_FLOAT(ViewState.Rotation.Yaw), DeltaTime, TargetYawAngleRotationSpeed);

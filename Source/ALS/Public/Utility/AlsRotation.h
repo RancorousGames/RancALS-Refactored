@@ -12,16 +12,16 @@ public:
 	static constexpr auto CounterClockwiseRotationAngleThreshold{5.0f};
 
 public:
+	// Remaps the angle from the [-175, -180] range to [185, 180]. Used
+	// to make the character rotate clockwise during a 180 degree turn.
 	template <typename ValueType> requires std::is_floating_point_v<ValueType>
-	static constexpr ValueType RemapAngleForCounterClockwiseRotation(ValueType Angle);
-
-	// Remaps the angle from the [175, 180] range to [-185, -180]. Used to
-	// make the character rotate counterclockwise during a 180 degree turn.
-	UFUNCTION(BlueprintPure, Category = "ALS|Rotation Utility", Meta = (ReturnDisplayName = "Angle"))
-	static float RemapAngleForCounterClockwiseRotation(float Angle);
+	static constexpr ValueType RemapAngleForCounterClockwiseRotation(ValueType Angle, const float ForcedDirection = 0);
 
 	UFUNCTION(BlueprintPure, Category = "ALS|Rotation Utility", Meta = (ReturnDisplayName = "Angle"))
-	static float LerpAngle(float From, float To, float Ratio);
+	static float RemapAngleForCounterClockwiseRotation(const float Angle, const float ForcedDirection);
+
+	UFUNCTION(BlueprintPure, Category = "ALS|Rotation Utility", Meta = (ReturnDisplayName = "Angle"))
+	static float LerpAngle(const float From, const float To, const float Ratio, const float BaseSpeed = 0, const int32 ForcedDirection = 0);
 
 	UFUNCTION(BlueprintPure, Category = "ALS|Rotation Utility", Meta = (AutoCreateRefTerm = "From, To", ReturnDisplayName = "Rotation"))
 	static FRotator LerpRotation(const FRotator& From, const FRotator& To, float Ratio);
@@ -52,9 +52,18 @@ public:
 };
 
 template <typename ValueType> requires std::is_floating_point_v<ValueType>
-constexpr ValueType UAlsRotation::RemapAngleForCounterClockwiseRotation(const ValueType Angle)
+constexpr ValueType UAlsRotation::RemapAngleForCounterClockwiseRotation(const ValueType Angle, const float ForcedDirection)
 {
 	if (Angle > 180.0f - CounterClockwiseRotationAngleThreshold)
+	{
+		// Forced direction is +1, 0 or -1
+		if (Angle > 0 && ForcedDirection < 0)
+		return Angle + 360.0f;
+		if (Angle < 0 && ForcedDirection > 0)
+			return Angle + 360.0f;
+	}
+	// The input is already normalized (clamped 180, -180) so this will "guess" that we were < -180 before normalizing
+	else if (Angle > 180.0f - CounterClockwiseRotationAngleThreshold) 
 	{
 		return Angle - 360.0f;
 	}
@@ -62,17 +71,22 @@ constexpr ValueType UAlsRotation::RemapAngleForCounterClockwiseRotation(const Va
 	return Angle;
 }
 
-inline float UAlsRotation::RemapAngleForCounterClockwiseRotation(const float Angle)
+inline float UAlsRotation::RemapAngleForCounterClockwiseRotation(const float Angle, const float ForcedDirection)
 {
-	return RemapAngleForCounterClockwiseRotation<float>(Angle);
+	return RemapAngleForCounterClockwiseRotation<float>(Angle, ForcedDirection);
 }
 
-inline float UAlsRotation::LerpAngle(const float From, const float To, const float Ratio)
+inline float UAlsRotation::LerpAngle(const float From, const float To, const float Ratio, const float BaseSpeed, const int32 ForcedDirection)
 {
 	auto Delta{FMath::UnwindDegrees(To - From)};
-	Delta = RemapAngleForCounterClockwiseRotation(Delta);
-
-	return FMath::UnwindDegrees(From + Delta * Ratio);
+	Delta = RemapAngleForCounterClockwiseRotation(Delta, ForcedDirection);
+	
+	// 15 is our base rotation speed, which is then increased by delta
+	float BaseSpeedYaw = Delta > 0 ? BaseSpeed : -BaseSpeed;
+	if (FMath::Abs(Delta) < FMath::Abs(Delta + BaseSpeedYaw) * Ratio) // When we would overshoot, just return the target
+		return To;
+	
+	return FMath::UnwindDegrees(From + (Delta + BaseSpeedYaw) * Ratio);
 }
 
 inline FRotator UAlsRotation::LerpRotation(const FRotator& From, const FRotator& To, const float Ratio)
@@ -98,12 +112,12 @@ inline float UAlsRotation::InterpolateAngleConstant(const float Current, const f
 		return Target;
 	}
 
-	auto Delta{FMath::UnwindDegrees(Target - Current)};
+	auto Delta{FRotator3f::NormalizeAxis(Target - Current)};
 	Delta = RemapAngleForCounterClockwiseRotation(Delta);
 
 	const auto MaxDelta{Speed * DeltaTime};
 
-	return FMath::UnwindDegrees(Current + FMath::Clamp(Delta, -MaxDelta, MaxDelta));
+	return FRotator3f::NormalizeAxis(Current + FMath::Clamp(Delta, -MaxDelta, MaxDelta));
 }
 
 inline float UAlsRotation::DampAngle(const float Current, const float Target, const float DeltaTime, const float Smoothing)

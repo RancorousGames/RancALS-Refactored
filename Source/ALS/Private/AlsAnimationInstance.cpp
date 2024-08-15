@@ -229,7 +229,8 @@ FAlsControlRigInput UAlsAnimationInstance::GetControlRigInput() const
 		.FootLeftRotation{FQuat{FeetState.Left.FinalRotation}},
 		.FootRightLocation{FVector{FeetState.Right.FinalLocation}},
 		.FootRightRotation{FQuat{FeetState.Right.FinalRotation}},
-		.SpineYawAngle = SpineState.YawAngle
+		.SpineYawAngle = SpineState.YawAngle,
+		.SpinePitchAngle = SpineState.PitchAngle
 	};
 }
 
@@ -367,9 +368,6 @@ void UAlsAnimationInstance::RefreshView(const float DeltaTime)
 		ViewState.YawAngle = FMath::UnwindDegrees(UE_REAL_TO_FLOAT(ViewState.Rotation.Yaw - LocomotionState.Rotation.Yaw));
 		ViewState.PitchAngle = FMath::UnwindDegrees(UE_REAL_TO_FLOAT(ViewState.Rotation.Pitch - LocomotionState.Rotation.Pitch));
 
-		// Log YawAngle
-		//UE_LOG(LogTemp, Warning, TEXT("YawAngle: %f - %f = %f"), ViewState.Rotation.Yaw, LocomotionState.Rotation.Yaw, ViewState.YawAngle);
-		
 		ViewState.PitchAmount = 0.5f - ViewState.PitchAngle / 180.0f;
 	}
 
@@ -388,24 +386,50 @@ bool UAlsAnimationInstance::IsSpineRotationAllowed()
 
 void UAlsAnimationInstance::RefreshSpine(const float SpineBlendAmount, const float DeltaTime)
 {
-	static constexpr bool UseSimpleWTRotation{false};
+	static constexpr bool UseSimpleWTRotation{true};
 	if (UseSimpleWTRotation)
 	{
 		// A simplified spine rotation for easier control of aiming speed with "allow aiming" curve value, made for wartribes
-
-		if (SpineState.bSpineRotationAllowed || SpineState.YawAngle != 0.0f)
+		bool SpineRotationAllowed = IsSpineRotationAllowed();
+		if (SpineRotationAllowed)
 		{
-			SpineState.YawAngle = UAlsRotation::LerpAngle(SpineState.YawAngle,
-															SpineState.bSpineRotationAllowed ? ViewState.YawAngle : 0,
-															SpineBlendAmount * SpineBlendAmount);
+			if (!SpineState.bSpineRotationAllowed)
+			{
+				SpineState.YawAngle = 0;
+				SpineState.LastActorYawAngle = LocomotionState.Rotation.Yaw;
+			}
+
+			// If the feet are rotating left then we want the spine to also rotate left, assuming we are far from the target
+			float SpineDeltaAngle = FMath::Abs(ViewState.YawAngle - SpineState.YawAngle);
+
+			const auto bTurnLeft{UAlsRotation::RemapAngleForCounterClockwiseRotation(ViewState.YawAngle) <= 0.0f};
+			int32 ForcedRotationDirection = SpineDeltaAngle < 45 || FMath::Abs(ViewState.YawAngle) <= Settings->TurnInPlace.ViewYawAngleThreshold ? 0 : bTurnLeft ? -1 : 1;
+
+			float ActorRotationDelta = FRotator3f::NormalizeAxis(UE_REAL_TO_FLOAT(LocomotionState.Rotation.Yaw - SpineState.LastActorYawAngle));
+
+			// now yaw the spine towards the target, keeping it within 90 degrees of center and counteracting the actor rotation
+			SpineState.YawAngle = FMath::Clamp(UAlsRotation::LerpAngle(SpineState.YawAngle,
+			                                                           ViewState.YawAngle,
+			                                                           3.0f * DeltaTime, 25.0, ForcedRotationDirection), -90, 90) - ActorRotationDelta;
+
+			SpineState.LastActorYawAngle = UE_REAL_TO_FLOAT(LocomotionState.Rotation.Yaw);
 		}
-		return;
+		else if (SpineState.YawAngle > 0)
+		{
+			UAlsRotation::LerpAngle(SpineState.YawAngle, 0, 6.0f * DeltaTime, 15.0);
+		}
+		SpineState.bSpineRotationAllowed = SpineRotationAllowed;
+
+		SpineState.PitchAngle = FMath::Clamp(UAlsRotation::LerpAngle(SpineState.PitchAngle,
+																	   ViewState.PitchAngle,
+																	   3.0f * DeltaTime, 25.0, 0), -80, 80);
+
 	}
-	
+	/*
 	if (SpineState.bSpineRotationAllowed != IsSpineRotationAllowed())
 	{
 		SpineState.bSpineRotationAllowed = !SpineState.bSpineRotationAllowed;
-		
+
 		if (SpineState.bSpineRotationAllowed)
 		{
 			// Remap SpineAmount from the [SpineAmount, 1] range to [0, 1] so that lerp between new LastYawAngle
@@ -501,6 +525,7 @@ void UAlsAnimationInstance::RefreshSpine(const float SpineBlendAmount, const flo
 	}
 
 	SpineState.YawAngle = UAlsRotation::LerpAngle(0.0f, SpineState.CurrentYawAngle, SpineBlendAmount);
+	*/
 }
 
 void UAlsAnimationInstance::InitializeLook()
@@ -1494,8 +1519,10 @@ void UAlsAnimationInstance::StopTransitionAndTurnInPlaceAnimations(const float B
 void UAlsAnimationInstance::RefreshTransitions()
 {
 	// The allow transitions curve is modified within certain states, so that transitions allowed will be true while in those states.
-
-	TransitionsState.bTransitionsAllowed = FAnimWeight::IsFullWeight(GetCurveValue(UAlsConstants::AllowTransitionsCurveName()));
+	bool TurningWrongDirection = LocomotionState.YawSpeed < 0.01 && ViewState.YawAngle > UE_SMALL_NUMBER ||
+		LocomotionState.YawSpeed > -0.01 && ViewState.YawAngle < -UE_SMALL_NUMBER;
+	TransitionsState.bTransitionsAllowed = FAnimWeight::IsFullWeight(GetCurveValue(UAlsConstants::AllowTransitionsCurveName())) ||
+		(RotationMode == AlsRotationModeTags::Aiming && FMath::Abs(ViewState.YawAngle) > 90 && FMath::Abs(ViewState.YawAngle) < 175 && TurningWrongDirection);
 }
 
 void UAlsAnimationInstance::RefreshDynamicTransitions()
@@ -1647,6 +1674,7 @@ bool UAlsAnimationInstance::IsRotateInPlaceAllowed()
 
 void UAlsAnimationInstance::RefreshRotateInPlace()
 {
+	// This is the gradual stepping towards a rotation when standing still
 #if WITH_EDITOR
 	if (!IsValid(GetWorld()) || !GetWorld()->IsGameWorld())
 	{
@@ -1674,8 +1702,9 @@ void UAlsAnimationInstance::RefreshRotateInPlace()
 	{
 		// Check if the character should rotate left or right by checking if the view yaw angle exceeds the threshold.
 
-		RotateInPlaceState.bRotatingLeft = ViewState.YawAngle < -Settings->RotateInPlace.ViewYawAngleThreshold;
-		RotateInPlaceState.bRotatingRight = ViewState.YawAngle > Settings->RotateInPlace.ViewYawAngleThreshold;
+		// This was disabled for WT Wartribes as we use Turning instead of rotation as it can do 180 in one go
+		//RotateInPlaceState.bRotatingLeft = ViewState.YawAngle < -Settings->RotateInPlace.ViewYawAngleThreshold;
+		//RotateInPlaceState.bRotatingRight = ViewState.YawAngle > Settings->RotateInPlace.ViewYawAngleThreshold;
 	}
 
 	static constexpr auto PlayRateInterpolationSpeed{5.0f};
@@ -1705,7 +1734,7 @@ void UAlsAnimationInstance::RefreshRotateInPlace()
 
 bool UAlsAnimationInstance::IsTurnInPlaceAllowed()
 {
-	return RotationMode == AlsRotationModeTags::ViewDirection && ViewMode != AlsViewModeTags::FirstPerson;
+	return RotationMode == AlsRotationModeTags::Aiming || RotationMode == AlsRotationModeTags::ViewDirection && ViewMode != AlsViewModeTags::FirstPerson;
 }
 
 void UAlsAnimationInstance::InitializeTurnInPlace()
@@ -1752,10 +1781,13 @@ void UAlsAnimationInstance::RefreshTurnInPlace()
 
 	TurnInPlaceState.ActivationDelay = TurnInPlaceState.ActivationDelay + GetDeltaSeconds();
 
-	const auto ActivationDelay{
-		FMath::GetMappedRangeValueClamped({Settings->TurnInPlace.ViewYawAngleThreshold, 180.0f},
-		                                  Settings->TurnInPlace.ViewYawAngleToActivationDelay,
-		                                  FMath::Abs(ViewState.YawAngle))
+	// Get the delay time until we do the first turn based on the yawangle, converting it to time in seconds 
+	auto ActivationDelay{
+		RotationMode == AlsRotationModeTags::Aiming
+			? 0
+			: FMath::GetMappedRangeValueClamped({Settings->TurnInPlace.ViewYawAngleThreshold, 180.0f},
+			                                    Settings->TurnInPlace.ViewYawAngleToActivationDelay,
+			                                    FMath::Abs(ViewState.YawAngle))
 	};
 
 	// Check if the activation delay time exceeds the set delay (mapped to the view yaw angle). If so, start a turn in place.
@@ -1807,7 +1839,7 @@ void UAlsAnimationInstance::RefreshTurnInPlace()
 		}
 	}
 
-	if (IsValid(TurnInPlaceSettings) && ALS_ENSURE(IsValid(TurnInPlaceSettings->Sequence)))
+	if (!IsValid(TurnInPlaceState.QueuedSettings) && IsValid(TurnInPlaceSettings) && ALS_ENSURE(IsValid(TurnInPlaceSettings->Sequence)))
 	{
 		// Animation montages can't be played in the worker thread, so queue them up to play later in the game thread.
 
@@ -1831,15 +1863,25 @@ void UAlsAnimationInstance::PlayQueuedTurnInPlaceAnimation()
 		return;
 	}
 
+	// Modified for wartribes
 	const auto* TurnInPlaceSettings{TurnInPlaceState.QueuedSettings.Get()};
 
-	PlaySlotAnimationAsDynamicMontage(TurnInPlaceSettings->Sequence, TurnInPlaceState.QueuedSlotName,
-	                                  Settings->TurnInPlace.BlendDuration, Settings->TurnInPlace.BlendDuration,
-	                                  TurnInPlaceSettings->PlayRate, 1, 0.0f);
-
-	// Scale the rotation yaw delta (gets scaled in animation graph) to compensate for play rate and turn angle (if allowed).
-
-	TurnInPlaceState.PlayRate = TurnInPlaceSettings->PlayRate;
+	if (RotationMode == AlsRotationModeTags::Aiming)
+	{
+		TurnInPlaceState.PlayRate = TurnInPlaceSettings->PlayRate * 1.66f;
+		PlaySlotAnimationAsDynamicMontage(TurnInPlaceSettings->Sequence, TurnInPlaceState.QueuedSlotName,
+		                                  0.1f, Settings->TurnInPlace.BlendDuration,
+		                                  TurnInPlaceState.PlayRate, 1, 0.0f, 0.0f);
+	}
+	else
+	{
+		PlaySlotAnimationAsDynamicMontage(TurnInPlaceSettings->Sequence, TurnInPlaceState.QueuedSlotName,
+										  Settings->TurnInPlace.BlendDuration, Settings->TurnInPlace.BlendDuration,
+										  TurnInPlaceSettings->PlayRate, 1, 0.0f);
+		
+		// Scale the rotation yaw delta (gets scaled in animation graph) to compensate for play rate and turn angle (if allowed).
+		TurnInPlaceState.PlayRate = TurnInPlaceSettings->PlayRate;
+	}
 
 	if (TurnInPlaceSettings->bScalePlayRateByAnimatedTurnAngle)
 	{
