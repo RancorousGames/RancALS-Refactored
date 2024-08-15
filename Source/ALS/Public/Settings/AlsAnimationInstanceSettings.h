@@ -11,6 +11,7 @@
 #include "AlsTransitionsSettings.h"
 #include "AlsTurnInPlaceSettings.h"
 #include "AlsViewAnimationSettings.h"
+#include "WTCustomSettings.h"
 #include "Engine/DataAsset.h"
 #include "AlsAnimationInstanceSettings.generated.h"
 
@@ -53,6 +54,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
 	FAlsGeneralTurnInPlaceSettings TurnInPlace;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
+	FWTCustomSettings WTCustom;
+	
 public:
 	UAlsAnimationInstanceSettings();
 
