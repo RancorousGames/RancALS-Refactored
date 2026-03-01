@@ -978,6 +978,9 @@ void UAlsCharacterMovementComponent::RefreshGroundedMovementSettings()
 		RunSpeed = FMath::Lerp(GaitSettings.RunBackwardSpeed, GaitSettings.RunForwardSpeed, ForwardSpeedAmount);
 	}
 
+	WalkSpeed *= ExternalSpeedMultiplier;
+	RunSpeed *= ExternalSpeedMultiplier;
+
 	// Map the character's current speed to the to the speed ranges from the movement settings. This allows
 	// us to vary movement speeds but still use the mapped range in calculations for consistent results.
 
@@ -1006,11 +1009,11 @@ void UAlsCharacterMovementComponent::RefreshGroundedMovementSettings()
 	}
 	else if (MaxAllowedGait == AlsGaitTags::Sprinting)
 	{
-		MaxWalkSpeed = GaitSettings.SprintSpeed;
+		MaxWalkSpeed = GaitSettings.SprintSpeed * ExternalSpeedMultiplier;
 	}
 	else
 	{
-		MaxWalkSpeed = GaitSettings.RunForwardSpeed;
+		MaxWalkSpeed = GaitSettings.RunForwardSpeed * ExternalSpeedMultiplier;
 	}
 
 	MaxWalkSpeedCrouched = MaxWalkSpeed;
@@ -1038,6 +1041,15 @@ void UAlsCharacterMovementComponent::SetMovementModeLocked(const bool bNewMoveme
 void UAlsCharacterMovementComponent::SetInputBlocked(const bool bNewInputBlocked)
 {
 	bInputBlocked = bNewInputBlocked;
+}
+
+void UAlsCharacterMovementComponent::SetExternalSpeedMultiplier(float NewMultiplier)
+{
+	if (ExternalSpeedMultiplier != NewMultiplier)
+	{
+		ExternalSpeedMultiplier = NewMultiplier;
+		RefreshGroundedMovementSettings();
+	}
 }
 
 bool UAlsCharacterMovementComponent::TryConsumePrePenetrationAdjustmentVelocity(FVector& OutVelocity)

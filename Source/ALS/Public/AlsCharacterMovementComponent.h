@@ -114,6 +114,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
 	uint8 bInputBlocked : 1 {false};
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
+	float ExternalSpeedMultiplier{1.0f};
+
 	// Valid only on locally controlled characters.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
 	FRotator PreviousControlRotation{ForceInit};
@@ -225,6 +228,9 @@ public:
 	void SetMovementModeLocked(bool bNewMovementModeLocked);
 
 	void SetInputBlocked(bool bNewInputBlocked);
+
+	UFUNCTION(BlueprintCallable, Category = "ALS|Character Movement")
+	void SetExternalSpeedMultiplier(float NewMultiplier);
 
 	bool TryConsumePrePenetrationAdjustmentVelocity(FVector& OutVelocity);
 };
