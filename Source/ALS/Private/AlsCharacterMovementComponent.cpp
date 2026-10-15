@@ -980,6 +980,7 @@ void UAlsCharacterMovementComponent::RefreshGroundedMovementSettings()
 
 	WalkSpeed *= ExternalSpeedMultiplier;
 	RunSpeed *= ExternalSpeedMultiplier;
+		const auto SprintSpeed{GaitSettings.SprintSpeed * ExternalSpeedMultiplier};
 
 	// Map the character's current speed to the to the speed ranges from the movement settings. This allows
 	// us to vary movement speeds but still use the mapped range in calculations for consistent results.
@@ -988,7 +989,7 @@ void UAlsCharacterMovementComponent::RefreshGroundedMovementSettings()
 
 	if (Speed > RunSpeed)
 	{
-		GaitAmount = FMath::GetMappedRangeValueClamped(FVector2f{RunSpeed, GaitSettings.SprintSpeed}, {2.0f, 3.0f}, Speed);
+		GaitAmount = FMath::GetMappedRangeValueClamped(FVector2f{RunSpeed, SprintSpeed}, {2.0f, 3.0f}, Speed);
 	}
 	else if (Speed > WalkSpeed)
 	{
@@ -1009,7 +1010,7 @@ void UAlsCharacterMovementComponent::RefreshGroundedMovementSettings()
 	}
 	else if (MaxAllowedGait == AlsGaitTags::Sprinting)
 	{
-		MaxWalkSpeed = GaitSettings.SprintSpeed * ExternalSpeedMultiplier;
+		MaxWalkSpeed = SprintSpeed;
 	}
 	else
 	{
